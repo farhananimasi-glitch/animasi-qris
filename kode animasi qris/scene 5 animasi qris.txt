@@ -1,0 +1,458 @@
+import React from 'react';
+import {
+  AbsoluteFill,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
+import {
+  clamp,
+  COLORS,
+  FONTS,
+  GLOW_MID,
+  PAY_COLORS,
+  SAFE,
+  SCALE_MID,
+  SCENE5,
+} from './theme';
+import {PLATE, QRPlate} from './QRPlate';
+
+const APPS = [
+  {label: 'BANK', color: PAY_COLORS[0], x: 200},
+  {label: 'DANA', color: PAY_COLORS[1], x: 370},
+  {label: 'OVO', color: PAY_COLORS[2], x: 540},
+  {label: 'GOPAY', color: PAY_COLORS[3], x: 710},
+  {label: 'LINK', color: PAY_COLORS[4], x: 880},
+];
+
+export const Scene5NationalStandard: React.FC = () => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const total = SCENE5.duration; // 360
+
+  // Transisi skala QRPlate: masuk dari Scene 4 -> mengecil di tengah -> membesar lagi ke Scene 6
+  const scaleIn = interpolate(frame, [0, 35], [SCALE_MID, 0.56], clamp);
+  const scaleOut = interpolate(frame, [total - 40, total], [0.56, 0.92], clamp);
+  const qrScale = frame < total - 40 ? scaleIn : scaleOut;
+
+  // Geser posisi QR sedikit ke atas saat diagram bawah aktif, lalu kembali ke tengah saat outro
+  const qrOffsetY =
+    frame < total - 40
+      ? interpolate(frame, [0, 35], [0, -75], clamp)
+      : interpolate(frame, [total - 40, total], [-75, 0], clamp);
+
+  // Header fade in & out
+  const headerOp =
+    interpolate(frame, [5, 25], [0, 1], clamp) *
+    interpolate(frame, [total - 35, total - 12], [1, 0], clamp);
+
+  // Fase 1 (Frame 25-145): 5 ikon bank/e-wallet muncul lalu menyatu ke QRIS
+  const mergeProgress = spring({
+    frame: Math.max(0, frame - 90),
+    fps,
+    config: {damping: 16, stiffness: 110},
+    durationInFrames: 50,
+  });
+
+  // Badge QRIS & strip 5 warna muncul setelah 5 ikon melebur
+  const qrisBadgeScale = spring({
+    frame: Math.max(0, frame - 125),
+    fps,
+    config: {damping: 12, stiffness: 180},
+  });
+  const qrisBadgeOp =
+    interpolate(frame, [125, 140], [0, 1], clamp) *
+    interpolate(frame, [total - 40, total - 15], [1, 0], clamp);
+
+  // Glow QR meningkat saat ikon melebur & saat menerima scan
+  const mergeFlash = interpolate(frame, [125, 145, 180], [0, 0.45, 0.15], clamp);
+  const qrGlow = GLOW_MID + mergeFlash;
+
+  // Fase 2 (Frame 145-320): Karakter pembeli scan -> ID Nasional -> Toko
+  const bottomGroupOp =
+    interpolate(frame, [145, 165], [0, 1], clamp) *
+    interpolate(frame, [total - 40, total - 15], [1, 0], clamp);
+
+  const buyerSlide = spring({
+    frame: Math.max(0, frame - 145),
+    fps,
+    config: {damping: 15, stiffness: 130},
+  });
+
+  // Sinar scan dari HP pembeli ke QRIS (frame 170-210)
+  const scanBeam = interpolate(frame, [170, 205], [0, 1], clamp);
+  const scanFade = interpolate(frame, [215, 235], [1, 0], clamp);
+
+  // Aliran data dari QRIS -> Hub ID Nasional -> Toko (frame 205-275)
+  const flowToHub = interpolate(frame, [205, 235], [0, 1], clamp);
+  const flowToMerchant = interpolate(frame, [235, 270], [0, 1], clamp);
+  const merchantDone = spring({
+    frame: Math.max(0, frame - 270),
+    fps,
+    config: {damping: 12, stiffness: 190},
+  });
+
+  return (
+    <AbsoluteFill style={{fontFamily: FONTS.sans}}>
+      {/* Judul Atas (Area Aman) */}
+      <div
+        style={{
+          position: 'absolute',
+          top: SAFE.top + 20,
+          left: SAFE.left,
+          right: SAFE.right,
+          textAlign: 'center',
+          opacity: headerOp,
+        }}
+      >
+        <div
+          style={{
+            display: 'inline-block',
+            padding: '10px 24px',
+            borderRadius: 999,
+            background: 'rgba(56,189,248,0.12)',
+            border: '1px solid rgba(56,189,248,0.35)',
+            color: COLORS.cyan,
+            fontFamily: FONTS.mono,
+            fontSize: 24,
+            fontWeight: 700,
+            letterSpacing: 2,
+            marginBottom: 16,
+          }}
+        >
+          03 · STANDAR NASIONAL
+        </div>
+        <div
+          style={{
+            fontSize: 58,
+            fontWeight: 800,
+            color: COLORS.white,
+            lineHeight: 1.15,
+          }}
+        >
+          1 Kode untuk Semua
+        </div>
+      </div>
+
+      {/* 5 Ikon Bank & E-Wallet yang melebur ke tengah */}
+      {APPS.map((app, i) => {
+        const appear = spring({
+          frame: Math.max(0, frame - (20 + i * 7)),
+          fps,
+          config: {damping: 14, stiffness: 160},
+        });
+        const curX = interpolate(mergeProgress, [0, 1], [app.x, 540]);
+        const curY = interpolate(mergeProgress, [0, 1], [470, 885]);
+        const curScale =
+          appear * interpolate(mergeProgress, [0, 0.85, 1], [1, 0.75, 0]);
+        const curOp = interpolate(mergeProgress, [0.7, 1], [1, 0], clamp);
+
+        return (
+          <div
+            key={app.label}
+            style={{
+              position: 'absolute',
+              left: curX - 64,
+              top: curY - 64,
+              width: 128,
+              height: 128,
+              borderRadius: 28,
+              background: COLORS.panel,
+              border: `3px solid ${app.color}`,
+              boxShadow: `0 12px 30px rgba(0,0,0,0.45), 0 0 24px ${app.color}44`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              transform: `scale(${curScale})`,
+              opacity: curOp,
+              zIndex: 5,
+            }}
+          >
+            <div
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 12,
+                background: app.color,
+              }}
+            />
+            <span
+              style={{
+                fontFamily: FONTS.mono,
+                fontSize: 20,
+                fontWeight: 700,
+                color: COLORS.white,
+              }}
+            >
+              {app.label}
+            </span>
+          </div>
+        );
+      })}
+
+      {/* Kode QRIS di Tengah */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          transform: `translateY(${qrOffsetY}px)`,
+        }}
+      >
+        <QRPlate tilt={0} scale={qrScale} opacity={1} glow={qrGlow}>
+          {/* Label QRIS + Strip 5 Warna */}
+          <div
+            style={{
+              position: 'absolute',
+              left: PLATE / 2 - 150,
+              top: -44,
+              width: 300,
+              height: 68,
+              borderRadius: 18,
+              background: COLORS.panel,
+              border: `2px solid ${COLORS.cyan}`,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              opacity: qrisBadgeOp,
+              transform: `scale(${qrisBadgeScale})`,
+              boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+            }}
+          >
+            <span
+              style={{
+                fontFamily: FONTS.sans,
+                fontWeight: 900,
+                fontSize: 30,
+                letterSpacing: 4,
+                color: COLORS.white,
+              }}
+            >
+              QRIS
+            </span>
+            <div style={{display: 'flex', width: '100%', height: 8, marginTop: 4}}>
+              {PAY_COLORS.map((c) => (
+                <div key={c} style={{flex: 1, background: c}} />
+              ))}
+            </div>
+          </div>
+        </QRPlate>
+      </div>
+
+      {/* Ilustrasi Alur Scan: Pembeli -> ID Nasional -> Toko */}
+      <div style={{opacity: bottomGroupOp}}>
+        {/* Garis & Paket Data SVG */}
+        <svg
+          width={1080}
+          height={1920}
+          style={{position: 'absolute', inset: 0, pointerEvents: 'none'}}
+        >
+          {/* Sinar Scan dari HP Pembeli (295, 1370) ke QRIS (540, 1080) */}
+          {scanBeam > 0 && (
+            <line
+              x1={295}
+              y1={1370}
+              x2={interpolate(scanBeam, [0, 1], [295, 510])}
+              y2={interpolate(scanBeam, [0, 1], [1370, 1080])}
+              stroke={COLORS.cyan}
+              strokeWidth={6}
+              strokeDasharray="14 10"
+              strokeLinecap="round"
+              opacity={scanFade}
+            />
+          )}
+
+          {/* Jalur QRIS (540, 1100) -> Hub ID Nasional (540, 1290) */}
+          <line
+            x1={540}
+            y1={1100}
+            x2={540}
+            y2={1290}
+            stroke="rgba(100,116,139,0.35)"
+            strokeWidth={5}
+          />
+          {flowToHub > 0 && (
+            <circle
+              cx={540}
+              cy={interpolate(flowToHub, [0, 1], [1100, 1290])}
+              r={11}
+              fill={COLORS.cyan}
+            />
+          )}
+
+          {/* Jalur Hub ID Nasional (540, 1390) -> Toko (810, 1450) */}
+          <path
+            d="M 540 1390 L 540 1460 L 740 1460"
+            fill="none"
+            stroke="rgba(100,116,139,0.35)"
+            strokeWidth={5}
+            strokeLinejoin="round"
+          />
+          {flowToMerchant > 0 && (
+            <circle
+              cx={interpolate(flowToMerchant, [0, 0.4, 1], [540, 540, 740])}
+              cy={interpolate(flowToMerchant, [0, 0.4, 1], [1390, 1460, 1460])}
+              r={11}
+              fill={COLORS.green}
+            />
+          )}
+        </svg>
+
+        {/* Pill ID Nasional di Tengah Bawah */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 540 - 185,
+            top: 1290,
+            width: 370,
+            padding: '16px 22px',
+            borderRadius: 20,
+            background: COLORS.panel,
+            border: `2px solid ${flowToHub >= 1 ? COLORS.cyan : COLORS.dim}`,
+            textAlign: 'center',
+            boxShadow: flowToHub >= 1 ? '0 0 28px rgba(56,189,248,0.35)' : 'none',
+          }}
+        >
+          <div
+            style={{
+              fontFamily: FONTS.mono,
+              fontSize: 20,
+              color: COLORS.cyan,
+              fontWeight: 700,
+            }}
+          >
+            STANDAR ID NASIONAL
+          </div>
+          <div
+            style={{
+              fontFamily: FONTS.mono,
+              fontSize: 22,
+              color: COLORS.soft,
+              marginTop: 4,
+            }}
+          >
+            ID: 93600815 · SAMA
+          </div>
+        </div>
+
+        {/* Karakter Vektor Minimalis Pembeli + Smartphone (Kiri Bawah) */}
+        <div
+          style={{
+            position: 'absolute',
+            left: SAFE.left + 20,
+            top: 1350,
+            width: 240,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            transform: `translateY(${(1 - buyerSlide) * 60}px)`,
+          }}
+        >
+          <svg width={190} height={190} viewBox="0 0 190 190">
+            {/* Badan / Jaket */}
+            <path
+              d="M 32 175 C 32 132, 128 132, 128 175 Z"
+              fill={COLORS.cyanStrong}
+            />
+            {/* Kepala */}
+            <circle cx={80} cy={86} r={34} fill={COLORS.white} />
+            {/* Rambut / Topi minimalis */}
+            <path
+              d="M 46 82 C 46 50, 114 50, 114 82 C 102 68, 60 68, 46 82 Z"
+              fill={COLORS.panel}
+            />
+            {/* Lengan memegang HP */}
+            <path
+              d="M 105 142 L 145 112"
+              stroke={COLORS.white}
+              strokeWidth={14}
+              strokeLinecap="round"
+            />
+            {/* Smartphone */}
+            <rect
+              x={136}
+              y={74}
+              width={26}
+              height={46}
+              rx={6}
+              transform="rotate(-18 149 97)"
+              fill={COLORS.panel}
+              stroke={COLORS.cyan}
+              strokeWidth={3}
+            />
+          </svg>
+          <span
+            style={{
+              fontFamily: FONTS.mono,
+              fontSize: 22,
+              fontWeight: 700,
+              color: COLORS.soft,
+            }}
+          >
+            APLIKASI APA SAJA
+          </span>
+        </div>
+
+        {/* Ikon Toko / Rekening Tujuan (Kanan Bawah) */}
+        <div
+          style={{
+            position: 'absolute',
+            right: SAFE.right + 20,
+            top: 1365,
+            width: 230,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+          }}
+        >
+          <div
+            style={{
+              width: 150,
+              height: 150,
+              borderRadius: 34,
+              background: COLORS.panel,
+              border: `3px solid ${flowToMerchant >= 1 ? COLORS.green : COLORS.dim}`,
+              boxShadow:
+                flowToMerchant >= 1
+                  ? '0 0 36px rgba(34,197,94,0.45)'
+                  : '0 16px 35px rgba(0,0,0,0.45)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transform: `scale(${1 + merchantDone * 0.08})`,
+            }}
+          >
+            {/* Vektor Toko */}
+            <svg width={84} height={84} viewBox="0 0 84 84">
+              <path d="M 12 32 L 20 14 L 64 14 L 72 32 Z" fill={COLORS.cyan} />
+              <rect
+                x={16}
+                y={32}
+                width={52}
+                height={38}
+                rx={4}
+                fill={COLORS.white}
+              />
+              <rect x={34} y={46} width={16} height={24} fill={COLORS.panel} />
+            </svg>
+          </div>
+          <span
+            style={{
+              marginTop: 14,
+              fontFamily: FONTS.mono,
+              fontSize: 22,
+              fontWeight: 700,
+              color: flowToMerchant >= 1 ? COLORS.green : COLORS.soft,
+            }}
+          >
+            {flowToMerchant >= 1 ? 'SALDO MASUK ✓' : 'REKENING TOKO'}
+          </span>
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};

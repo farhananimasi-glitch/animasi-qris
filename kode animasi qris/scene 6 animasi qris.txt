@@ -1,0 +1,154 @@
+import React from 'react';
+import {
+  AbsoluteFill,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from 'remotion';
+import {
+  clamp,
+  COLORS,
+  FONTS,
+  GLOW_END,
+  SAFE,
+  SCENE6,
+  TILT_DEG,
+} from './theme';
+import {QRPlate} from './QRPlate';
+
+const RECAP_PILLS = [
+  '1 · FINDER PATTERN',
+  '2 · REED-SOLOMON',
+  '3 · ID NASIONAL',
+];
+
+export const Scene6Outro: React.FC = () => {
+  const frame = useCurrentFrame();
+  const {fps} = useVideoConfig();
+  const total = SCENE6.duration; // 150
+
+  // Zoom-out lembut lalu kembali ke posisi awal Scene 1 untuk seamless loop
+  const scaleIn = interpolate(frame, [0, 35], [0.92, 0.84], clamp);
+  const scaleLoop = interpolate(frame, [total - 35, total], [0.84, 0.9], clamp);
+  const scale = frame < total - 35 ? scaleIn : scaleLoop;
+
+  // Tilt kembali ke TILT_DEG di akhir agar menyambung mulus saat video berulang
+  const tilt = interpolate(frame, [total - 35, total], [0, TILT_DEG], clamp);
+
+  // Denyut glow lembut
+  const pulse = 0.55 + 0.2 * Math.sin((frame / fps) * Math.PI * 2);
+  const glow =
+    frame < total - 35
+      ? pulse
+      : interpolate(frame, [total - 35, total], [pulse, GLOW_END], clamp);
+
+  const textOp =
+    interpolate(frame, [8, 26], [0, 1], clamp) *
+    interpolate(frame, [total - 32, total - 10], [1, 0], clamp);
+
+  const titleSlide = spring({
+    frame: Math.max(0, frame - 8),
+    fps,
+    config: {damping: 16, stiffness: 140},
+  });
+
+  return (
+    <AbsoluteFill style={{fontFamily: FONTS.sans}}>
+      {/* Cincin radar halus di belakang QR */}
+      <AbsoluteFill style={{justifyContent: 'center', alignItems: 'center'}}>
+        <div
+          style={{
+            width: 820,
+            height: 820,
+            borderRadius: '50%',
+            border: '2px solid rgba(56,189,248,0.18)',
+            transform: `scale(${0.92 + 0.06 * Math.sin(frame * 0.08)})`,
+            opacity: textOp,
+          }}
+        />
+      </AbsoluteFill>
+
+      {/* QR Utama */}
+      <QRPlate tilt={tilt} scale={scale} opacity={1} glow={glow} />
+
+      {/* Judul Penutup di Atas */}
+      <div
+        style={{
+          position: 'absolute',
+          top: SAFE.top + 35,
+          left: SAFE.left,
+          right: SAFE.right,
+          textAlign: 'center',
+          opacity: textOp,
+          transform: `translateY(${(1 - titleSlide) * -30}px)`,
+        }}
+      >
+        <div
+          style={{
+            fontFamily: FONTS.mono,
+            fontSize: 26,
+            fontWeight: 700,
+            letterSpacing: 3,
+            color: COLORS.cyan,
+            marginBottom: 14,
+          }}
+        >
+          DIRANCANG ANTI-GAGAL
+        </div>
+        <div
+          style={{
+            fontSize: 60,
+            fontWeight: 900,
+            color: COLORS.white,
+            lineHeight: 1.15,
+          }}
+        >
+          Matematika di Balik QRIS
+        </div>
+      </div>
+
+      {/* Ringkasan 3 Pilar di Bawah */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: SAFE.bottom + 40,
+          left: SAFE.left,
+          right: SAFE.right,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 16,
+          opacity: textOp,
+        }}
+      >
+        {RECAP_PILLS.map((item, idx) => {
+          const pillPop = spring({
+            frame: Math.max(0, frame - (20 + idx * 12)),
+            fps,
+            config: {damping: 14, stiffness: 170},
+          });
+          return (
+            <div
+              key={item}
+              style={{
+                padding: '14px 32px',
+                borderRadius: 999,
+                background: COLORS.panel,
+                border: '1.5px solid rgba(56,189,248,0.4)',
+                color: COLORS.white,
+                fontFamily: FONTS.mono,
+                fontSize: 26,
+                fontWeight: 700,
+                transform: `scale(${pillPop})`,
+                boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
+              }}
+            >
+              {item}
+            </div>
+          );
+        })}
+      </div>
+    </AbsoluteFill>
+  );
+};
